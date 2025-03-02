@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Costos de Recetas</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background-color: #ddd;
+            border: none;
+            cursor: pointer;
+            flex-grow: 1;
+            text-align: center;
+        }
+        .tab.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .delete-btn {
+            background-color: #f44336;
+            color: white;
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .delete-btn:hover {
+            background-color: #d32f2f;
+        }
+        .export-btn {
+            background-color: #ff9800;
+            color: white;
+        }
+        .export-btn:hover {
+            background-color: #e68a00;
+        }
+    </style>
+</head>
+<body>
+    <h1>Calculadora de Costos de Recetas</h1>
+    
+    <div class="tabs">
+        <button class="tab active" onclick="openTab('ingredientes')">Ingredientes</button>
+        <button class="tab" onclick="openTab('recetas')">Recetas</button>
+    </div>
+    
+    <!-- Sección de Ingredientes -->
+    <div id="ingredientes" class="tab-content active">
+        <div class="container">
+            <h2>Agregar Nuevo Ingrediente</h2>
+            <form id="ingredienteForm">
+                <label for="nombreIngrediente">Nombre del Ingrediente:</label>
+                <input type="text" id="nombreIngrediente" required>
+                
+                <label for="presentacion">Presentación:</label>
+                <input type="text" id="presentacion" placeholder="Ej: Bolsa, Caja, Botella" required>
+                
+                <label for="peso">Peso (gramos):</label>
+                <input type="number" id="peso" min="1" required>
+                
+                <label for="precio">Precio:</label>
+                <input type="number" id="precio" min="0.01" step="0.01" required>
+                
+                <button type="submit">Agregar Ingrediente</button>
+            </form>
+        </div>
+        
+        <div class="container">
+            <h2>Ingredientes Disponibles</h2>
+            <table id="ingredientesTabla">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Presentación</th>
+                        <th>Peso (g)</th>
+                        <th>Precio</th>
+                        <th>Costo por gramo</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <button id="exportarIngredientes" class="export-btn">Exportar Ingredientes</button>
+        </div>
+    </div>
+    
+    <!-- Sección de Recetas -->
+    <div id="recetas" class="tab-content">
+        <div class="container">
+            <h2>Crear Nueva Receta</h2>
+            <form id="recetaForm">
+                <label for="nombreReceta">Nombre de la Receta:</label>
+                <input type="text" id="nombreReceta" required>
+                
+                <label for="descripcionReceta">Descripción (opcional):</label>
+                <input type="text" id="descripcionReceta">
+                
+                <button type="submit">Crear Receta</button>
+            </form>
+        </div>
+        
+        <div class="container">
+            <h2>Recetas</h2>
+            <div id="recetasLista"></div>
+            <button id="exportarRecetas" class="export-btn">Exportar Todas las Recetas</button>
+        </div>
+    </div>
+    
+    <!-- Template para detalles de receta -->
+    <template id="recetaTemplate">
+        <div class="container receta-detalle">
+            <h3 class="receta-nombre"></h3>
+            <p class="receta-descripcion"></p>
+            
+            <h4>Agregar Ingrediente a la Receta</h4>
+            <form class="agregar-ingrediente-form">
+                <label for="selectIngrediente">Ingrediente:</label>
+                <select class="select-ingrediente" required>
+                    <option value="">Seleccionar ingrediente</option>
+                </select>
+                
+                <label for="cantidadIngrediente">Cantidad (gramos):</label>
+                <input type="number" class="cantidad-ingrediente" min="1" required>
+                
+                <button type="submit">Agregar a la Receta</button>
+            </form>
+            
+            <h4>Ingredientes de la Receta</h4>
+            <table class="ingredientes-receta-tabla">
+                <thead>
+                    <tr>
+                        <th>Ingrediente</th>
+                        <th>Cantidad (g)</th>
+                        <th>Costo</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="2">Costo Total:</th>
+                        <td class="costo-total" colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+            
+            <div class="action-buttons">
+                <button class="export-btn exportar-receta">Exportar Receta PDF</button>
+                <button class="delete-btn eliminar-receta">Eliminar Receta</button>
+            </div>
+        </div>
+    </template>
+    
+    <script>
+        // Acceder a los objetos jsPDF exportados como variables globales
+        const { jsPDF } = window.jspdf;
+        
+        // Almacenamiento de datos
+        let ingredientes = JSON.parse(localStorage.getItem('ingredientes')) || [];
+        let recetas = JSON.parse(localStorage.getItem('recetas')) || [];
+        
+        // Funciones de utilidad
+        function guardarDatos() {
+            localStorage.setItem('ingredientes', JSON.stringify(ingredientes));
+            localStorage.setItem('recetas', JSON.stringify(recetas));
+        }
+        
+        function calcularCostoPorGramo(peso, precio) {
+            return precio / peso;
+        }
+        
+        function formatearPrecio(precio) {
+            return precio.toFixed(2);
+        }
+        
+        // Control de pestañas
+        function openTab(tabName) {
+            const tabs = document.getElementsByClassName('tab');
+            const tabContents = document.getElementsByClassName('tab-content');
+            
+            for (let i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+            
+            for (let i = 0; i < tabContents.length; i++) {
+                tabContents[i].classList.remove('active');
+            }
+            
+            document.getElementById(tabName).classList.add('active');
+            
+            const activeTab = document.querySelector(`.tab[onclick="openTab('${tabName}')"]`);
+            activeTab.classList.add('active');
+        }
+        
+        // Gestión de Ingredientes
+        document.getElementById('ingredienteForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const nombre = document.getElementById('nombreIngrediente').value;
+            const presentacion = document.getElementById('presentacion').value;
+            const peso = parseFloat(document.getElementById('peso').value);
+            const precio = parseFloat(document.getElementById('precio').value);
+            const costoPorGramo = calcularCostoPorGramo(peso, precio);
+            
+            const nuevoIngrediente = {
+                id: Date.now(),
+                nombre,
+                presentacion,
+                peso,
+                precio,
+                costoPorGramo
+            };
+            
+            ingredientes.push(nuevoIngrediente);
+            guardarDatos();
+            actualizarTablaIngredientes();
+            actualizarSelectoresIngredientes();
+            
+            this.reset();
+        });
+        
+        function actualizarTablaIngredientes() {
+            const tbody = document.querySelector('#ingredientesTabla tbody');
+            tbody.innerHTML = '';
+            
+            ingredientes.forEach(ingrediente => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${ingrediente.nombre}</td>
+                    <td>${ingrediente.presentacion}</td>
+                    <td>${ingrediente.peso} g</td>
+                    <td>${formatearPrecio(ingrediente.precio)}</td>
+                    <td>${formatearPrecio(ingrediente.costoPorGramo)} / g</td>
+                    <td>
+                        <button class="delete-btn" onclick="eliminarIngrediente(${ingrediente.id})">
+                            Eliminar
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        function eliminarIngrediente(id) {
+            if (confirm('¿Estás seguro de que deseas eliminar este ingrediente?')) {
+                ingredientes = ingredientes.filter(ing => ing.id !== id);
+                guardarDatos();
+                actualizarTablaIngredientes();
+                actualizarSelectoresIngredientes();
+                
+                // Actualizar las recetas que usan este ingrediente
+                recetas.forEach(receta => {
+                    receta.ingredientes = receta.ingredientes.filter(ing => ing.ingredienteId !== id);
+                    calcularCostoReceta(receta);
+                });
+                guardarDatos();
+                mostrarRecetas();
+            }
+        }
+        
+        // Gestión de Recetas
+        document.getElementById('recetaForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const nombre = document.getElementById('nombreReceta').value;
+            const descripcion = document.getElementById('descripcionReceta').value;
+            
+            const nuevaReceta = {
+                id: Date.now(),
+                nombre,
+                descripcion,
+                ingredientes: [],
+                costoTotal: 0
+            };
+            
+            recetas.push(nuevaReceta);
+            guardarDatos();
+            mostrarRecetas();
+            
+            this.reset();
+        });
+        
+        function mostrarRecetas() {
+            const listaRecetas = document.getElementById('recetasLista');
+            listaRecetas.innerHTML = '';
+            
+            recetas.forEach(receta => {
+                const template = document.getElementById('recetaTemplate');
+                const recetaElemento = document.importNode(template.content, true);
+                
+                recetaElemento.querySelector('.receta-nombre').textContent = receta.nombre;
+                recetaElemento.querySelector('.receta-descripcion').textContent = receta.descripcion;
+                
+                // Configurar formulario para añadir ingredientes
+                const selectIngrediente = recetaElemento.querySelector('.select-ingrediente');
+                selectIngrediente.innerHTML = '<option value="">Seleccionar ingrediente</option>';
+                
+                ingredientes.forEach(ingrediente => {
+                    const option = document.createElement('option');
+                    option.value = ingrediente.id;
+                    option.textContent = `${ingrediente.nombre} (${ingrediente.presentacion})`;
+                    selectIngrediente.appendChild(option);
+                });
+                
+                const form = recetaElemento.querySelector('.agregar-ingrediente-form');
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    agregarIngredienteAReceta(receta.id, this);
+                });
+                
+                // Mostrar ingredientes actuales
+                const tablaIngredientes = recetaElemento.querySelector('.ingredientes-receta-tabla tbody');
+                receta.ingredientes.forEach(ing => {
+                    const ingrediente = ingredientes.find(i => i.id === ing.ingredienteId);
+                    if (ingrediente) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${ingrediente.nombre}</td>
+                            <td>${ing.cantidad} g</td>
+                            <td>${formatearPrecio(ing.costo)}</td>
+                            <td>
+                                <button class="delete-btn" data-receta="${receta.id}" data-ingrediente="${ing.id}">
+                                    Eliminar
+                                </button>
+                            </td>
+                        `;
+                        tablaIngredientes.appendChild(tr);
+                        
+                        const btnEliminar = tr.querySelector('.delete-btn');
+                        btnEliminar.addEventListener('click', function() {
+                            eliminarIngredienteDeReceta(
+                                receta.id,
+                                ing.id
+                            );
+                        });
+                    }
+                });
+                
+                // Mostrar costo total
+                recetaElemento.querySelector('.costo-total').textContent = formatearPrecio(receta.costoTotal);
+                
+                // Configurar botones de acción
+                const btnEliminarReceta = recetaElemento.querySelector('.eliminar-receta');
+                btnEliminarReceta.addEventListener('click', function() {
+                    eliminarReceta(receta.id);
+                });
+                
+                const btnExportarReceta = recetaElemento.querySelector('.exportar-receta');
+                btnExportarReceta.addEventListener('click', function() {
+                    exportarRecetaPDF(receta.id);
+                });
+                
+                listaRecetas.appendChild(recetaElemento);
+            });
+        }
+        
+        function agregarIngredienteAReceta(recetaId, form) {
+            const receta = recetas.find(r => r.id === recetaId);
+            if (!receta) return;
+            
+            const ingredienteId = parseInt(form.querySelector('.select-ingrediente').value);
+            const cantidad = parseFloat(form.querySelector('.cantidad-ingrediente').value);
+            
+            const ingrediente = ingredientes.find(i => i.id === ingredienteId);
+            if (!ingrediente) return;
+            
+            const costo = ingrediente.costoPorGramo * cantidad;
+            
+            const nuevoIngredienteReceta = {
+                id: Date.now(),
+                ingredienteId,
+                cantidad,
+                costo
+            };
+            
+            receta.ingredientes.push(nuevoIngredienteReceta);
+            calcularCostoReceta(receta);
+            guardarDatos();
+            mostrarRecetas();
+            
+            form.reset();
+        }
+        
+        function eliminarIngredienteDeReceta(recetaId, ingredienteRecetaId) {
+            if (confirm('¿Estás seguro de que deseas eliminar este ingrediente de la receta?')) {
+                const receta = recetas.find(r => r.id === recetaId);
+                if (receta) {
+                    receta.ingredientes = receta.ingredientes.filter(i => i.id !== ingredienteRecetaId);
+                    calcularCostoReceta(receta);
+                    guardarDatos();
+                    mostrarRecetas();
+                }
+            }
+        }
+        
+        function calcularCostoReceta(receta) {
+            receta.costoTotal = receta.ingredientes.reduce((total, ing) => total + ing.costo, 0);
+        }
+        
+        function eliminarReceta(recetaId) {
+            if (confirm('¿Estás seguro de que deseas eliminar esta receta?')) {
+                recetas = recetas.filter(r => r.id !== recetaId);
+                guardarDatos();
+                mostrarRecetas();
+            }
+        }
+        
+        function actualizarSelectoresIngredientes() {
+            const selectores = document.querySelectorAll('.select-ingrediente');
+            selectores.forEach(select => {
+                const recetaId = select.closest('.receta-detalle').querySelector('.eliminar-receta').dataset.receta;
+                
+                const valorActual = select.value;
+                select.innerHTML = '<option value="">Seleccionar ingrediente</option>';
+                
+                ingredientes.forEach(ingrediente => {
+                    const option = document.createElement('option');
+                    option.value = ingrediente.id;
+                    option.textContent = `${ingrediente.nombre} (${ingrediente.presentacion})`;
+                    select.appendChild(option);
+                });
+                
+                if (valorActual) {
+                    select.value = valorActual;
+                }
+            });
+        }
+        
+        // Funciones de exportación PDF
+        function exportarRecetaPDF(recetaId) {
+            const receta = recetas.find(r => r.id === recetaId);
+            if (!receta) return;
+            
+            // Crear nuevo documento PDF
+            const doc = new jsPDF();
+            
+            // Título y descripción
+            doc.setFontSize(22);
+            doc.text(`Receta: ${receta.nombre}`, 14, 20);
+            
+            if (receta.descripcion) {
+                doc.setFontSize(12);
+                doc.text(`Descripción: ${receta.descripcion}`, 14, 30);
+            }
+            
+            // Preparar datos para la tabla
+            const tableColumn = ['Ingrediente', 'Cantidad (g)', 'Costo'];
+            const tableRows = [];
+            
+            receta.ingredientes.forEach(ing => {
+                const ingrediente = ingredientes.find(i => i.id === ing.ingredienteId);
+                if (ingrediente) {
+                    tableRows.push([
+                        ingrediente.nombre,
+                        ing.cantidad.toString(),
+                        formatearPrecio(ing.costo)
+                    ]);
+                }
+            });
+            
+            // Añadir tabla
+            doc.setFontSize(16);
+            doc.text('Ingredientes de la Receta', 14, receta.descripcion ? 40 : 30);
+            
+            doc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: receta.descripcion ? 45 : 35,
+                theme: 'grid',
+                styles: { fontSize: 10 },
+                headStyles: { fillColor: [76, 175, 80] }
+            });
+            
+            // Añadir costo total
+            const finalY = doc.lastAutoTable.finalY + 10;
+            doc.setFontSize(14);
+            doc.text(`Costo Total: ${formatearPrecio(receta.costoTotal)}`, 14, finalY);
+            
+            // Añadir fecha y hora
+            const fechaActual = new Date();
+            doc.setFontSize(10);
+            doc.text(
+                `Fecha: ${fechaActual.toLocaleDateString()} - Hora: ${fechaActual.toLocaleTimeString()}`,
+                14,
+                finalY + 10
+            );
+            
+            // Guardar el PDF
+            doc.save(`receta_${receta.nombre.replace(/\s+/g, '_')}.pdf`);
+        }
+        
+        function exportarTodasLasRecetasPDF() {
+            if (recetas.length === 0) {
+                alert('No hay recetas para exportar.');
+                return;
+            }
+            
+            // Crear nuevo documento PDF
+            const doc = new jsPDF();
+            
+            // Título principal
+            doc.setFontSize(22);
+            doc.text('Todas las Recetas', 14, 20);
+            
+            let currentY = 30;
+            
+            // Recorrer cada receta
+            recetas.forEach((receta, index) => {
+                // Agrega nueva página si no es la primera receta
+                if (index > 0) {
+                    doc.addPage();
+                    currentY = 20;
+                }
+                
+                // Título de la receta
+                doc.setFontSize(18);
+                doc.text(`Receta: ${receta.nombre}`, 14, currentY);
+                currentY += 10;
+                
+                if (receta.descripcion) {
+                    doc.setFontSize(12);
+                    doc.text(`Descripción: ${receta.descripcion}`, 14, currentY);
+                    currentY += 10;
+                }
+                
+                // Preparar datos para la tabla
+                const tableColumn = ['Ingrediente', 'Cantidad (g)', 'Costo'];
+                const tableRows = [];
+                
+                receta.ingredientes.forEach(ing => {
+                    const ingrediente = ingredientes.find(i => i.id === ing.ingredienteId);
+                    if (ingrediente) {
+                        tableRows.push([
+                            ingrediente.nombre,
+                            ing.cantidad.toString(),
+                            formatearPrecio(ing.costo)
+                        ]);
+                    }
+                });
+                
+                // Añadir tabla
+                doc.setFontSize(16);
+                doc.text('Ingredientes:', 14, currentY);
+                
+                doc.autoTable({
+                    head: [tableColumn],
+                    body: tableRows,
+                    startY: currentY + 5,
+                    theme: 'grid',
+                    styles: { fontSize: 10 },
+                    headStyles: { fillColor: [76, 175, 80] }
+                });
+                
+                // Añadir costo total
+                const finalY = doc.lastAutoTable.finalY + 10;
+                doc.setFontSize(14);
+                doc.text(`Costo Total: ${formatearPrecio(receta.costoTotal)}`, 14, finalY);
+            });
+            
+            // Añadir fecha y hora al final
+            const fechaActual = new Date();
+            doc.setFontSize(10);
+            doc.text(
+                `Generado el: ${fechaActual.toLocaleDateString()} - ${fechaActual.toLocaleTimeString()}`,
+                14,
+                doc.internal.pageSize.height - 10
+            );
+            
+            // Guardar el PDF
+            doc.save(`todas_las_recetas_${new Date().toISOString().split('T')[0]}.pdf`);
+        }
+        
+        function exportarIngredientesPDF() {
+            if (ingredientes.length === 0) {
+                alert('No hay ingredientes para exportar.');
+                return;
+            }
+            
+            // Crear nuevo documento PDF
+            const doc = new jsPDF();
+            
+            // Título principal
+            doc.setFontSize(22);
+            doc.text('Lista de Ingredientes', 14, 20);
+            
+            // Preparar datos para la tabla
+            const tableColumn = ['Nombre', 'Presentación', 'Peso (g)', 'Precio', 'Costo por gramo'];
+            const tableRows = [];
+            
+            ingredientes.forEach(ing => {
+                tableRows.push([
+                    ing.nombre,
+                    ing.presentacion,
+                    ing.peso.toString(),
+                    formatearPrecio(ing.precio),
+                    formatearPrecio(ing.costoPorGramo)
+                ]);
+            });
+            
+            // Añadir tabla
+            doc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 30,
+                theme: 'grid',
+                styles: { fontSize: 10 },
+                headStyles: { fillColor: [76, 175, 80] }
+            });
+            
+            // Añadir fecha y hora
+            const fechaActual = new Date();
+            doc.setFontSize(10);
+            doc.text(
+                `Generado el: ${fechaActual.toLocaleDateString()} - ${fechaActual.toLocaleTimeString()}`,
+                14,
+                doc.internal.pageSize.height - 10
+            );
+            
+            // Guardar el PDF
+            doc.save(`ingredientes_${new Date().toISOString().split('T')[0]}.pdf`);
+        }
+        
+        // Agregar event listeners para exportación
+        document.getElementById('exportarIngredientes').addEventListener('click', exportarIngredientesPDF);
+        document.getElementById('exportarRecetas').addEventListener('click', exportarTodasLasRecetasPDF);
+        
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            actualizarTablaIngredientes();
+            mostrarRecetas();
+        });
+    </script>
+</body>
+</html>
